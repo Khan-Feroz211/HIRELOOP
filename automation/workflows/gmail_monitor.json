@@ -1,0 +1,141 @@
+{
+  "name": "HireLoop — Gmail Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 30,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "filters": {
+          "readStatus": "unread",
+          "subject": "application received|thank you for applying|we received your|interview invitation|job offer|regret to inform|unfortunately"
+        },
+        "options": {}
+      },
+      "id": "gmail_trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.subject }}",
+              "operation": "contains",
+              "value2": "application"
+            }
+          ]
+        }
+      },
+      "id": "filter_emails",
+      "name": "Filter Recruitment Emails",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HIRELOOP_API_URL }}/webhooks/email-parsed",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_email",
+              "value": "={{ $json.from }}"
+            },
+            {
+              "name": "email_subject",
+              "value": "={{ $json.subject }}"
+            },
+            {
+              "name": "email_body",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "received_at",
+              "value": "={{ $json.date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "post_to_api",
+      "name": "POST to HireLoop API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_CHANNEL_ID }}",
+        "text": "HireLoop: Processed recruitment email from {{ $json.from }} — status: {{ $json.parsed_status }}",
+        "options": {}
+      },
+      "id": "notify_slack",
+      "name": "Optional Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter Recruitment Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Recruitment Emails": {
+      "main": [
+        [
+          {
+            "node": "POST to HireLoop API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST to HireLoop API": {
+      "main": [
+        [
+          {
+            "node": "Optional Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Asia/Karachi"
+  },
+  "tags": ["hireloop", "gmail", "automation"],
+  "description": "Monitors Gmail every 30 minutes for recruitment emails and sends them to HireLoop API for Claude-powered parsing."
+}
