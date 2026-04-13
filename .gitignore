@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Environment
+.env
+*.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.vercel/
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+# Database
+*.db
+*.sqlite
+
+# Docker
+.docker/
+
+# Secrets / credentials
+gmail_credentials.json
+gmail_token.json
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Alembic auto-generated (keep only our initial migration)
+# alembic/versions/*.py
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,160 @@
+{
+  "name": "HireLoop — Daily Ghost Scan",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule_trigger",
+      "name": "Schedule Trigger (9am PKT = 4am UTC)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HIRELOOP_API_URL }}/webhooks/daily-scan",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "={{ $env.WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "trigger_scan",
+      "name": "Trigger Ghost Score Scan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.high_risk_count }}",
+              "operation": "largerEqual",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "check_high_risk",
+      "name": "Any High Risk Applications?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HIRELOOP_API_URL }}/notifications/ghost-alert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "high_risk_applications",
+              "value": "={{ JSON.stringify($json.high_risk_applications) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send_alerts",
+      "name": "Send Ghost Alert Notifications",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "functionCode": "console.log(`Daily scan complete: ${$json.applications_scanned} scanned, ${$json.high_risk_count} high risk`);\nreturn items;"
+      },
+      "id": "log_results",
+      "name": "Log Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (9am PKT = 4am UTC)": {
+      "main": [
+        [
+          {
+            "node": "Trigger Ghost Score Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Ghost Score Scan": {
+      "main": [
+        [
+          {
+            "node": "Any High Risk Applications?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any High Risk Applications?": {
+      "main": [
+        [
+          {
+            "node": "Send Ghost Alert Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Asia/Karachi"
+  },
+  "tags": ["hireloop", "ghost-score", "daily", "automation"],
+  "description": "Runs daily at 9am PKT. Triggers ghost score recalculation for all confirmed applications. Sends alerts for high-risk (score > 70) applications."
+}
