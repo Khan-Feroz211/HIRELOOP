@@ -8,11 +8,13 @@ import Navbar from "@/components/Navbar";
 import toast from "react-hot-toast";
 import {
   applicationsApi,
+  authApi,
   aiApi,
   getStatusColor,
   formatDate,
   type Application,
   type ApplicationCreate,
+  type User,
 } from "@/lib/api";
 
 const STATUSES = ["applied", "confirmed", "interview", "offer", "rejected", "ghosted"] as const;
@@ -27,6 +29,11 @@ export default function TrackerPage() {
   useEffect(() => {
     if (!localStorage.getItem("token")) router.push("/login");
   }, [router]);
+
+  const { data: currentUser } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => authApi.me().then((r) => r.data),
+  });
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
@@ -89,7 +96,31 @@ export default function TrackerPage() {
 
         {/* Kanban Board */}
         {isLoading ? (
-          <div className="text-center py-16 text-gray-400">Loading…</div>
+          <div className="flex gap-4 overflow-x-auto pb-6">
+            {STATUSES.map((s) => (
+              <div key={s} className="flex-shrink-0 w-72">
+                <div className="bg-gray-100 rounded-xl p-3">
+                  <div className="h-5 bg-gray-200 rounded animate-pulse mb-3 w-24" />
+                  <div className="space-y-2">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="bg-white rounded-lg p-3 h-16 animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (apps as Application[]).length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <p className="text-5xl mb-4">📋</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No applications yet</h3>
+            <p className="text-gray-500 text-sm mb-6 text-center max-w-xs">
+              Start tracking your job applications to see your Kanban board and get ghost risk scores.
+            </p>
+            <button onClick={() => setShowAddModal(true)} className="btn-primary">
+              + Add Your First Application
+            </button>
+          </div>
         ) : (
           <div className="flex gap-4 overflow-x-auto pb-6">
             {STATUSES.map((status) => (
@@ -117,6 +148,7 @@ export default function TrackerPage() {
       {activeApp && (
         <ApplicationDetailModal
           app={activeApp}
+          currentUser={currentUser}
           onClose={() => setActiveApp(null)}
           onStatusChange={(status) =>
             updateMutation.mutate({ id: activeApp.id, data: { status } })
@@ -296,11 +328,13 @@ function AddApplicationModal({
 
 function ApplicationDetailModal({
   app,
+  currentUser,
   onClose,
   onStatusChange,
   onDelete,
 }: {
   app: Application;
+  currentUser?: User;
   onClose: () => void;
   onStatusChange: (status: string) => void;
   onDelete: () => void;
@@ -316,7 +350,7 @@ function ApplicationDetailModal({
     setGenerating(true);
     try {
       const res = await aiApi.followupEmail({
-        applicant_name: "You",
+        applicant_name: currentUser?.name || "Applicant",
         company: app.company_name,
         job_title: app.job_title,
         days_since_applied: app.days_since_contact || 7,

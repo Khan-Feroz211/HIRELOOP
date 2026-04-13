@@ -39,6 +39,8 @@ class UserOut(BaseModel):
     name: str
     role: str
     subscription_tier: str
+    email_verified: bool
+    onboarded: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -193,3 +195,27 @@ class EmailParsedWebhook(BaseModel):
 class DailyScanWebhook(BaseModel):
     # Optional secret to authenticate n8n requests
     secret: Optional[str] = None
+
+
+# ─── Payment Schemas ──────────────────────────────────────────────────────────
+
+class PaymentCheckoutRequest(BaseModel):
+    plan: str = "pro"  # "pro" or "university"
+
+
+class PaymentCheckoutResponse(BaseModel):
+    checkout_url: str
+    tracker_id: str
+
+
+class PaymentWebhookPayload(BaseModel):
+    tracker_id: str
+    status: str  # "paid" | "failed" | "refunded"
+    amount: Optional[int] = None
+    currency: str = "PKR"
+
+
+# ─── Onboarding Schema ────────────────────────────────────────────────────────
+
+class OnboardingComplete(BaseModel):
+    onboarded: bool = True

@@ -149,13 +149,37 @@ export default function JobsPage() {
 
         {/* Results */}
         {isLoading ? (
-          <div className="text-center py-16 text-gray-400">Loading jobs…</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="card animate-pulse">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 bg-gray-200 rounded w-3/4" />
+                    <div className="h-4 bg-gray-100 rounded w-1/2" />
+                  </div>
+                  <div className="h-5 bg-gray-200 rounded w-12 ml-2" />
+                </div>
+                <div className="flex gap-1.5 mb-3">
+                  <div className="h-5 bg-gray-100 rounded w-16" />
+                  <div className="h-5 bg-gray-100 rounded w-20" />
+                </div>
+                <div className="h-4 bg-gray-100 rounded w-24" />
+              </div>
+            ))}
+          </div>
         ) : jobs.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-400 text-lg mb-2">No jobs found</p>
-            <p className="text-gray-300 text-sm">
-              Try adjusting your filters or check back later for new listings
+          <div className="text-center py-20">
+            <p className="text-4xl mb-4">💼</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No jobs match your filters</h3>
+            <p className="text-gray-400 text-sm mb-6 max-w-xs mx-auto">
+              Try removing some filters, or check back later — new listings are scraped daily from Rozee.pk, LinkedIn, and Mustakbil.
             </p>
+            <button
+              onClick={() => setFilters({ remote: undefined, paid: undefined, domain: "", city: "" })}
+              className="btn-secondary"
+            >
+              Clear all filters
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

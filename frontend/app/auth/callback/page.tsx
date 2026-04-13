@@ -12,6 +12,10 @@ function CallbackHandler() {
     const token = params.get("token");
     if (token) {
       localStorage.setItem("token", token);
+      // Remove the token from the URL immediately for security
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, document.title, "/auth/callback");
+      }
       router.push("/dashboard");
     } else {
       router.push("/login?error=oauth_failed");
