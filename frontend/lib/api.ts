@@ -54,6 +54,8 @@ export interface User {
   name: string;
   role: string;
   subscription_tier: string;
+  email_verified: boolean;
+  onboarded: boolean;
   created_at: string;
 }
 

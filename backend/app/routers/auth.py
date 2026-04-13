@@ -5,14 +5,16 @@ All routes under /auth are public (no JWT required).
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import UUID
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import jwt
-from passlib.context import CryptContext
 import httpx
 
 from app.config import get_settings
@@ -24,6 +26,7 @@ from app.middleware.auth import get_current_user
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -47,6 +50,44 @@ def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None)
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
+async def _send_verification_email(email: str, name: str, token: str) -> None:
+    """Send a verification email via Resend. Silently fails if not configured."""
+    if not settings.resend_api_key:
+        logger.info("Resend not configured — skipping verification email for %s", email)
+        return
+
+    verification_url = f"{settings.frontend_url}/auth/verify?token={token}"
+    payload = {
+        "from": settings.from_email,
+        "to": email,
+        "subject": "Verify your HireLoop PK account",
+        "html": f"""
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2 style="color:#2563eb;">🔁 Welcome to HireLoop PK, {name}!</h2>
+          <p>Click the button below to verify your email address and activate your account.</p>
+          <a href="{verification_url}"
+             style="display:inline-block;background:#2563eb;color:#fff;padding:12px 24px;
+                    border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
+            Verify Email
+          </a>
+          <p style="color:#6b7280;font-size:13px;">
+            This link expires in 24 hours. If you didn't create an account, you can safely ignore this email.
+          </p>
+        </div>
+        """,
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                "https://api.resend.com/emails",
+                json=payload,
+                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+                timeout=10,
+            )
+    except Exception as exc:
+        logger.warning("Failed to send verification email to %s: %s", email, exc)
+
+
 # ─── Register ────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
@@ -62,12 +103,45 @@ async def register(body: UserRegister, db: AsyncSession = Depends(get_db)):
         hashed_password=hash_password(body.password),
         role=UserRole.student,
         subscription_tier=SubscriptionTier.free,
+        email_verified=False,
+        onboarded=False,
     )
     db.add(user)
     await db.flush()
 
+    # Issue a short-lived token for email verification (re-use access token logic)
+    verification_token = create_access_token(str(user.id), expires_delta=timedelta(hours=24))
+    await _send_verification_email(user.email, user.name, verification_token)
+
     token = create_access_token(str(user.id))
     return Token(access_token=token)
+
+
+# ─── Verify Email ─────────────────────────────────────────────────────────────
+
+@router.get("/verify")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    """Mark a user's email as verified from the link sent in the verification email."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired verification link",
+    )
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise credentials_exception
+
+    user.email_verified = True
+    await db.flush()
+    return RedirectResponse(url=f"{settings.frontend_url}/dashboard?verified=1")
 
 
 # ─── Login ────────────────────────────────────────────────────────────────────
@@ -93,6 +167,19 @@ async def login(body: UserLogin, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
     """Return the authenticated user's profile."""
+    return current_user
+
+
+# ─── Onboarding ───────────────────────────────────────────────────────────────
+
+@router.post("/onboarding-complete", response_model=UserOut)
+async def complete_onboarding(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark the user's onboarding as completed."""
+    current_user.onboarded = True
+    await db.flush()
     return current_user
 
 
@@ -160,13 +247,16 @@ async def google_callback(code: str, db: AsyncSession = Depends(get_db)):
             role=UserRole.student,
             subscription_tier=SubscriptionTier.free,
             google_oauth_token=json.dumps(tokens),
+            email_verified=True,  # Google accounts are pre-verified
+            onboarded=False,
         )
         db.add(user)
     else:
         user.google_oauth_token = json.dumps(tokens)
+        user.email_verified = True  # Mark verified on each Google login
 
     await db.flush()
 
     token = create_access_token(str(user.id))
-    # Redirect to frontend with token in query param
+    # Redirect to frontend callback page — token is stored in localStorage there
     return RedirectResponse(url=f"{settings.frontend_url}/auth/callback?token={token}")

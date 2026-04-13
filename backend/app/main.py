@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.middleware.rate_limit import limiter
-from app.routers import auth, applications, ai, jobs, webhooks
+from app.routers import auth, applications, ai, jobs, webhooks, payments
 
 settings = get_settings()
 
@@ -46,6 +46,7 @@ app.include_router(applications.router)
 app.include_router(ai.router)
 app.include_router(jobs.router)
 app.include_router(webhooks.router)
+app.include_router(payments.router)
 
 
 # ─── Health Check ────────────────────────────────────────────────────────────

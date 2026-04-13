@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Navbar from "@/components/Navbar";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import toast from "react-hot-toast";
-import { aiApi } from "@/lib/api";
+import { aiApi, authApi } from "@/lib/api";
+import Link from "next/link";
 
 interface PrepResult {
   role_summary: string;
@@ -26,6 +29,14 @@ export default function PrepPage() {
     if (!localStorage.getItem("token")) router.push("/login");
   }, [router]);
 
+  const { data: user } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => authApi.me().then((r) => r.data),
+    retry: false,
+  });
+
+  const isPro = user?.subscription_tier === "pro" || user?.subscription_tier === "university";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (jobDesc.length < 50) {
@@ -44,6 +55,7 @@ export default function PrepPage() {
   };
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -55,8 +67,26 @@ export default function PrepPage() {
           </p>
         </div>
 
+        {/* Pro gate */}
+        {user && !isPro && (
+          <div className="card mb-6 bg-gradient-to-r from-brand-50 to-white border-brand-200">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🔒</span>
+              <div>
+                <p className="font-semibold text-brand-900 mb-1">Interview Prep is a Pro feature</p>
+                <p className="text-brand-700 text-sm mb-3">
+                  Get 10 AI-generated questions, STAR-format answers, and weak area analysis tailored to any job description.
+                </p>
+                <Link href="/upgrade" className="btn-primary inline-block">
+                  Upgrade to Pro — PKR 299/month
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Input Form */}
-        <div className="card mb-6">
+        <div className={`card mb-6 ${user && !isPro ? "opacity-50 pointer-events-none" : ""}`}>
           <form onSubmit={handleSubmit}>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Job Description
@@ -189,5 +219,6 @@ Requirements:
         )}
       </main>
     </div>
+    </ErrorBoundary>
   );
 }
