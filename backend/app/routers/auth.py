@@ -5,21 +5,22 @@ All routes under /auth are public (no JWT required).
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import UUID
 import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import jwt
-from passlib.context import CryptContext
 import httpx
 
 from app.config import get_settings
 from app.database import get_db
 from app.models.user import User, UserRole, SubscriptionTier
-from app.schemas import UserRegister, UserLogin, Token, UserOut, OnboardingComplete
+from app.schemas import UserRegister, UserLogin, Token, UserOut
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -126,15 +127,13 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
         detail="Invalid or expired verification link",
     )
     try:
-        from jose import JWTError
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
         user_id: str = payload.get("sub")
         if not user_id:
             raise credentials_exception
-    except Exception:
+    except JWTError:
         raise credentials_exception
 
-    from uuid import UUID
     result = await db.execute(select(User).where(User.id == UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user:

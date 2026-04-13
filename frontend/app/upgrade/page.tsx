@@ -110,12 +110,12 @@ export default function UpgradePage() {
                 "Everything in Pro",
                 "Batch license for 500+ students",
                 "Career center dashboard",
-                "Analytics &amp; reporting",
+                "Analytics & reporting",
                 "Dedicated support",
               ].map((f) => (
                 <li key={f} className="flex items-center gap-2 text-sm text-gray-700">
                   <span className="text-green-500">✓</span>
-                  <span dangerouslySetInnerHTML={{ __html: f }} />
+                  {f}
                 </li>
               ))}
             </ul>

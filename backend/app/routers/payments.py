@@ -3,9 +3,11 @@ Payments Router — Safepay integration for Pro subscriptions.
 PKR 299/month for Pro, PKR 999/month for University tier.
 """
 
+import json
 import logging
 import hmac
 import hashlib
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,7 +120,6 @@ async def payment_webhook(
             raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:
-        import json
         payload_dict = json.loads(raw_body)
         payload = PaymentWebhookPayload(**payload_dict)
     except Exception:
@@ -137,7 +138,6 @@ async def payment_webhook(
         logger.warning("Webhook missing user_id in metadata")
         return {"received": True}
 
-    from uuid import UUID
     result = await db.execute(select(User).where(User.id == UUID(user_id)))
     user = result.scalar_one_or_none()
 
